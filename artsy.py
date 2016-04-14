@@ -1,46 +1,55 @@
 # python libs
-import urllib
+import urllib, argparse
 
 # 3rd party
 import requests
 from pymongo import MongoClient
-# connect to mongoDB, get articles collection
-client = MongoClient('mongodb://localhost')
-db = client.artsy
 
 # keep those keys hidden!
 from keys import *
 
-apiurl = 'https://api.artsy.net/api/'
-headers = {
-    #'Accept': 'application/vnd.artsy-v3+json',
-    'X-XAPP-Token': token,
-}
+if __name__ == '__main__':
+    # C M D L I N E   A R G U M E N T S
 
-# get all artists, write into 'artists'
-req = requests.get(apiurl + 'artists', headers=headers)
-reqjson = req.json()
+    parser = argparse.ArgumentParser(description='pull artist and associated artwork information from artsy api and store in mongo.')
+    parser.add_argument('--ops', nargs='+', type=str, default=['artists','artworks'], help='operations to perform. presently avail: artists, artworks.')
+    parser.add_argument('--host', default='localhost', type=str, help='host where mongo is running.')
+    arg = parser.parse_args()
 
-# while there are pages to be had
-'''
-while('next' in reqjson['_links']):
-    # iterate through list of artist dictionaries
-    for artist in reqjson['_embedded']['artists']:
-        # save artist to mongo
-        query = { 'id': artist['id'] }
-        update = { '$set': artist }
-        db.artists.update_one(query, update, upsert=True)
-    print 'artist', artist['id'], artist['name']
+    # connect to mongoDB on default port
+    client = MongoClient('mongodb://{host}'.format(**vars(arg)))
+    db = client.artsy
 
-    # get next page of artists
-    req = requests.get(reqjson['_links']['next']['href'], headers=headers)
+    # api url setup
+    apiurl = 'https://api.artsy.net/api/'
+    headers = { 'X-XAPP-Token': token }
+
+    # hit artists endpoint
+    req = requests.get(apiurl + 'artists', headers=headers)
     reqjson = req.json()
-'''
 
-for artist in db.artists.find():
-    import ipdb; ipdb.set_trace();
-    req = requests.get(artist['_links']['artworks']['href'], headers=headers)
-    query = { 'id': artist['id'] }
-    update = { '$set': { 'artworks': req.json()['_embedded']['artworks'] }}
-    db.artist.update_one(query, update)
-    print 'artworks', artist['id'], artist['name']
+    # A R T I S T S
+    if 'artists' in arg.ops:
+        # while there are pages to be had
+        while('next' in reqjson['_links']):
+
+            # iterate through list of artist dictionaries
+            for artist in reqjson['_embedded']['artists']:
+                # store artist in mongo
+                query = { 'id': artist['id'] }
+                update = { '$set': artist }
+                db.artists.update_one(query, update, upsert=True)
+            print 'artist', artist['id'], artist['name']
+
+            # get next page of artists
+            req = requests.get(reqjson['_links']['next']['href'], headers=headers)
+            reqjson = req.json()
+
+    # A R T W O R K S
+    if 'artworks' in arg.ops:
+        for artist in db.artists.find():
+            req = requests.get(artist['_links']['artworks']['href'], headers=headers)
+            query = { 'id': artist['id'] }
+            update = { '$set': { 'artworks': req.json()['_embedded']['artworks'] }}
+            db.artists.update_one(query, update)
+            print 'artworks', artist['id'], artist['name']
