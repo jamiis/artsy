@@ -10,12 +10,12 @@ from keys import *
 
 if __name__ == '__main__':
     # C M D L I N E   A R G U M E N T S
-
     parser = argparse.ArgumentParser(description='pull artist and associated artwork information from artsy api and store in mongo.')
     parser.add_argument('--ops', nargs='+', type=str, default=['artists','artworks'], help='operations to perform. presently avail: artists, artworks.')
     parser.add_argument('--host', default='localhost', type=str, help='host where mongo is running.')
     arg = parser.parse_args()
 
+    # D B   &   S E T U P
     # connect to mongoDB on default port
     client = MongoClient('mongodb://{host}'.format(**vars(arg)))
     db = client.artsy
@@ -24,12 +24,13 @@ if __name__ == '__main__':
     apiurl = 'https://api.artsy.net/api/'
     headers = { 'X-XAPP-Token': token }
 
-    # hit artists endpoint
-    req = requests.get(apiurl + 'artists', headers=headers)
-    reqjson = req.json()
-
     # A R T I S T S
+    # hit artists endpoint
     if 'artists' in arg.ops:
+        # get first page of artists
+        req = requests.get(apiurl + 'artists', headers=headers)
+        reqjson = req.json()
+
         # while there are pages to be had
         while('next' in reqjson['_links']):
 
